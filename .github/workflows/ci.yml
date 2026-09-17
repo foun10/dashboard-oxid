@@ -1,0 +1,180 @@
+name: CI
+
+on:
+  push:
+    branches: [b-6.x]
+    tags: ['v*']
+  pull_request:
+    branches: [b-6.x]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Full matrix: every OXID version this branch supports, against every PHP version OXID
+  # officially supports for it. The pairs come from _tooling/oxid-php-matrix.md and must stay
+  # in sync with the compatibility table in README.md - the table is a promise, this is what
+  # keeps it true.
+  tests:
+    name: OXID ${{ matrix.oxid }} / PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { oxid: '6.2', php: '7.4' }
+          - { oxid: '6.3', php: '7.4' }
+          - { oxid: '6.3', php: '8.0' }
+          - { oxid: '6.4', php: '7.4' }
+          - { oxid: '6.4', php: '8.0' }
+          - { oxid: '6.5', php: '7.4' }
+          - { oxid: '6.5', php: '8.0' }
+          - { oxid: '6.5', php: '8.1' }
+
+    services:
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -proot"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+
+    steps:
+      - name: Check out the module
+        uses: actions/checkout@v4
+        with:
+          path: module
+
+      - name: Set up PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: gd, zip, bcmath, soap, mysqli, pdo_mysql
+          # Composer is pinned deliberately. The oxideshop-composer-plugin calls
+          # Filesystem::copy() with an array as third argument; up to the Symfony bundled in
+          # Composer 2.2 that parameter is untyped and coerces, from 2.3 it is bool-typed and
+          # the install dies with a TypeError. See _tooling/oxid-6-7-unterschiede.md, section 6.
+          tools: composer:2.2
+          coverage: none
+
+      - name: Cache Composer downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-oxid${{ matrix.oxid }}-php${{ matrix.php }}-${{ hashFiles('module/composer.json') }}
+          restore-keys: |
+            composer-oxid${{ matrix.oxid }}-php${{ matrix.php }}-
+            composer-oxid${{ matrix.oxid }}-
+
+      - name: Prepare the database
+        # The service container cannot be given a command line, so the settings our local
+        # docker-compose passes as flags are applied here instead: OXID 6 needs a permissive
+        # sql_mode, and MySQL 5.7 would otherwise create the database as latin1.
+        run: |
+          mysql -h 127.0.0.1 -P 3306 -uroot -proot -e "
+            SET GLOBAL sql_mode='';
+            DROP DATABASE IF EXISTS oxid;
+            CREATE DATABASE oxid CHARACTER SET utf8 COLLATE utf8_general_ci;"
+
+      - name: Install OXID ${{ matrix.oxid }}
+        # OXID 6 predates Composer 2.2's allow-plugins gate, so the OXID plugins would be
+        # blocked. Create without installing, allow them, then install.
+        run: |
+          composer create-project --no-interaction --no-install \
+            oxid-esales/oxideshop-project shop "dev-b-${{ matrix.oxid }}-ce"
+          cd shop
+          composer config --no-plugins --no-interaction allow-plugins true
+          composer install --no-interaction
+
+      - name: Set up the shop
+        # OXID 6 has no oe:setup:shop - that arrived with 7. The browser wizard does nothing
+        # more than the steps below, which is why they can be scripted.
+        working-directory: shop
+        run: |
+          sed -i \
+            -e 's|<dbHost>|127.0.0.1|' \
+            -e 's|<dbName>|oxid|' \
+            -e 's|<dbUser>|root|' \
+            -e 's|<dbPwd>|root|' \
+            -e 's|<sShopURL>|http://localhost/|' \
+            -e "s|<sShopDir>|$GITHUB_WORKSPACE/shop/source/|" \
+            -e "s|<sCompileDir>|$GITHUB_WORKSPACE/shop/source/tmp/|" \
+            source/config.inc.php
+          mysql -h 127.0.0.1 -P 3306 -uroot -proot --default-character-set=utf8 oxid < source/Setup/Sql/database_schema.sql
+          mysql -h 127.0.0.1 -P 3306 -uroot -proot --default-character-set=utf8 oxid < source/Setup/Sql/initial_data.sql
+          php vendor/bin/oe-eshop-db_migrate migrations:migrate --no-interaction
+          php vendor/bin/oe-eshop-db_views_generate
+          rm -rf source/Setup
+
+      - name: Install and activate the module
+        working-directory: shop
+        run: |
+          composer config repositories.local path "$GITHUB_WORKSPACE/module"
+          composer require foun10/dashboard:@dev --no-interaction
+          php vendor/bin/oe-console oe:module:install-configuration source/modules/foun10/Dashboard
+          php vendor/bin/oe-console oe:module:activate foun10Dashboard
+
+      - name: Install the module's dev dependencies
+        working-directory: module
+        # update, not install: there is no committed lock file, because the dependency tree is
+        # resolved per PHP version. A lock file would tie the whole matrix to one of them.
+        run: composer update --no-interaction --no-progress
+
+      - name: Unit tests
+        working-directory: module
+        run: composer tests-unit
+
+      - name: Integration tests
+        working-directory: module
+        env:
+          OXID_SHOP_BOOTSTRAP: ${{ github.workspace }}/shop/source/bootstrap.php
+        run: composer tests-integration
+
+      - name: Shop error log
+        if: failure()
+        run: cat shop/source/log/oxideshop.log || echo "no log written"
+
+  # Mutation testing needs no shop, so it runs once on a fixed PHP version rather than across
+  # the matrix. Infection is fetched as a phar on purpose: it requires PHP 8.1+, and as a
+  # require-dev entry it would break dependency resolution on the lower half of the matrix -
+  # this branch still supports PHP 7.4.
+  mutation:
+    name: Mutation testing
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the module
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          # 8.1 is the highest PHP this branch supports, and the lowest Infection accepts.
+          php-version: '8.1'
+          extensions: gd, zip, bcmath, soap, mysqli, pdo_mysql
+          # pcov rather than xdebug: coverage only, and considerably faster.
+          coverage: pcov
+          tools: composer:2.2
+
+      - name: Install dependencies
+        run: composer update --no-interaction --no-progress
+
+      - name: Install Infection
+        # 0.28.x is the newest line that still runs on PHP 8.1; 0.29 requires 8.2.
+        run: |
+          curl -sSLo /usr/local/bin/infection \
+            https://github.com/infection/infection/releases/download/0.28.1/infection.phar
+          chmod +x /usr/local/bin/infection
+
+      - name: Run mutation testing
+        run: composer tests-mutation

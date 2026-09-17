@@ -1,0 +1,53 @@
+{
+    // Mutation testing for the shop-independent logic.
+    //
+    // Limited to src/Core: that is the only part the unit suite reaches. The controller and
+    // the extension need a running shop and are covered by the integration suite; mutating them
+    // would only produce uncovered mutants that say nothing about the tests that exist.
+    //
+    // Infection runs as a PHAR rather than a require-dev dependency: it needs PHP 8.1+ while
+    // this line supports PHP 7.4 upwards - as require-dev it would break dependency resolution
+    // across the lower half of the CI matrix.
+    "source": {
+        "directories": [
+            "src/Core"
+        ]
+    },
+    "mutators": {
+        "@default": true,
+
+        // The shop seams: each one is a single call into OXID (database, file cache, config,
+        // SEO URLs). The unit suite replaces them by design, and the integration suite runs
+        // them for real, so a mutant here can only survive in this run.
+        "global-ignore": [
+            "foun10\\Dashboard\\Core\\DashboardData::getShopUrl",
+            "foun10\\Dashboard\\Core\\DashboardData::readCache",
+            "foun10\\Dashboard\\Core\\DashboardData::writeCache",
+            "foun10\\Dashboard\\Core\\DashboardData::getConfigBool",
+            "foun10\\Dashboard\\Core\\DashboardData::getModuleSettingString",
+            "foun10\\Dashboard\\Core\\DashboardData::getViewName",
+            "foun10\\Dashboard\\Core\\DashboardData::getLanguageId",
+            "foun10\\Dashboard\\Core\\DashboardData::getShopId",
+            "foun10\\Dashboard\\Core\\DashboardData::now",
+            "foun10\\Dashboard\\Core\\DashboardData::fetchAll",
+            "foun10\\Dashboard\\Core\\DashboardData::fetchRow",
+            "foun10\\Dashboard\\Core\\DashboardData::fetchOne",
+            "foun10\\Dashboard\\Core\\DashboardData::getDb"
+        ],
+
+        // The seams exist to be overridden - by the unit suite's test double and by projects
+        // extending the module through the OXID module chain - so tightening them to private is
+        // not a mutant the suite can kill without giving up the extension point.
+        "ProtectedVisibility": {
+            "ignore": [
+                "foun10\\Dashboard\\Core\\DashboardData",
+                "foun10\\Dashboard\\Core\\Period",
+                "foun10\\Dashboard\\Core\\Formatter::parseDateTime"
+            ]
+        }
+    },
+    "logs": {
+        "text": "infection.log"
+    },
+    "tmpDir": ".infection"
+}

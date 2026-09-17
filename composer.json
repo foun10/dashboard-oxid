@@ -1,0 +1,62 @@
+{
+  "name": "foun10/dashboard",
+  "description": "Sales dashboard for the OXID eShop admin start page: revenue KPIs with comparisons, trend, customer types, payment methods, countries, top sellers and open baskets",
+  "type": "oxideshop-module",
+  "keywords": [
+    "oxid",
+    "modules",
+    "eShop",
+    "dashboard",
+    "admin",
+    "statistics"
+  ],
+  "homepage": "https://www.foun10.de",
+  "license": "GPL-3.0-only",
+  "authors": [
+    {
+      "name": "foun10 GmbH",
+      "email": "info@foun10.de"
+    }
+  ],
+  "extra": {
+    "oxideshop": {
+      "target-directory": "foun10/Dashboard",
+      "blacklist-filter": [
+        "tests/**/*",
+        "vendor/**/*",
+        "phpunit.xml",
+        "phpunit.integration.xml",
+        "infection.json5",
+        "infection.log",
+        ".infection/**/*",
+        ".phpunit.cache/**/*",
+        "composer.lock",
+        ".github/**/*"
+      ]
+    }
+  },
+  "require": {
+    "php": "^7.4 || ^8.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "foun10\\Dashboard\\": "./src"
+    }
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^9.6"
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "foun10\\Dashboard\\Tests\\": "./tests"
+    }
+  },
+  "scripts": {
+    "tests-unit": "phpunit --testsuite unit",
+    "tests-mutation": "infection --threads=4 --min-covered-msi=84 --no-interaction",
+    "tests-integration": "phpunit -c phpunit.integration.xml"
+  },
+  "config": {
+    "sort-packages": true
+  }
+}
