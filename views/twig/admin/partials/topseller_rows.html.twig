@@ -1,0 +1,45 @@
+{# Top seller table rows (topSellerPage from DashboardData::getTopSellers) - first page and "show more" pages. #}
+{% for product in topSellerPage.items %}
+    <tr>
+        <td class="f10d-num f10d-muted">{{ topSellerPage.offset + loop.index }}</td>
+        <td class="f10d-product">
+            <span class="f10d-product-title">
+                {% if product.exists %}
+                    <a href="{{ oView.getAdminLink('admin_article', product.id)|raw }}" data-nav="admin_article">{{ oView.escape(product.title)|raw }}</a>
+                {% else %}
+                    {{ oView.escape(product.title)|raw }}
+                {% endif %}
+                {% if product.shopUrl %}
+                    {% set shopLinkLabel = translate({ ident: "FOUN10_DASHBOARD_OPEN_IN_SHOP" }) %}
+                    <a class="f10d-shop-link" href="{{ oView.escape(product.shopUrl)|raw }}" target="_blank" rel="noopener"
+                       title="{{ shopLinkLabel }}" aria-label="{{ shopLinkLabel }}: {{ oView.escape(product.title)|raw }}">
+                        <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" focusable="false">
+                            <path d="M9 2h5v5M14 2 7.5 8.5M12 9.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3.5"
+                                  fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </a>
+                {% endif %}
+            </span>
+            <span class="f10d-muted">{{ oView.escape(product.artnum)|raw }}{% if product.exists and not product.active %} · {{ translate({ ident: "FOUN10_DASHBOARD_INACTIVE" }) }}{% endif %}</span>
+        </td>
+        <td class="f10d-num">{{ oView.formatNumber(product.qty) }}</td>
+        <td class="f10d-num">{{ oView.formatMoney(product.revenue, 0) }}</td>
+        <td>
+            {% if not product.exists %}
+                <span class="f10d-muted">{{ translate({ ident: "FOUN10_DASHBOARD_DELETED" }) }}</span>
+            {% else %}
+                <span class="f10d-status f10d-status--{{ product.stockStatus }}">
+                    <span class="f10d-status-icon" aria-hidden="true">{% if product.stockStatus == 'critical' %}✕{% elseif product.stockStatus == 'warning' %}!{% else %}✓{% endif %}</span>
+                    {% if product.stockStatus == 'critical' %}
+                        {{ translate({ ident: "FOUN10_DASHBOARD_STOCK_SOLD_OUT" }) }}
+                    {% else %}
+                        {{ oView.formatNumber(product.stock) }} {{ translate({ ident: "FOUN10_DASHBOARD_STOCK_PIECES" }) }}
+                    {% endif %}
+                </span>
+                {% if product.soldOutVariants > 0 and product.stockStatus != 'critical' %}
+                    <span class="f10d-muted f10d-block">{{ product.soldOutVariants }}/{{ product.variants }} {{ translate({ ident: "FOUN10_DASHBOARD_VARIANTS_SOLD_OUT" }) }}</span>
+                {% endif %}
+            {% endif %}
+        </td>
+    </tr>
+{% endfor %}

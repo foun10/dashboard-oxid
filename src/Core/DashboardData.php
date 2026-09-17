@@ -8,6 +8,8 @@ use OxidEsales\Eshop\Application\Model\Article;
 use OxidEsales\Eshop\Core\DatabaseProvider;
 use OxidEsales\Eshop\Core\Registry;
 use OxidEsales\Eshop\Core\TableViewNameGenerator;
+use OxidEsales\EshopCommunity\Internal\Container\ContainerFactory;
+use OxidEsales\EshopCommunity\Internal\Framework\Module\Facade\ModuleSettingServiceInterface;
 
 /**
  * Collects all dashboard figures for one period.
@@ -652,14 +654,16 @@ class DashboardData
     }
 
     /**
-     * A module setting. OXID 6 keeps them in oxconfig, where the shop config reads them; the
-     * 7.x line reads the same seam from the module setting service instead.
+     * A module setting. OXID 7 keeps them in var/configuration, where Config::getConfigParam()
+     * returns null without any error - they have to come from the module setting service. The
+     * 6.x line reads the same seam from oxconfig.
      */
     protected function getModuleSettingString(string $name): string
     {
-        $value = Registry::getConfig()->getConfigParam($name);
-
-        return is_scalar($value) ? (string) $value : '';
+        return (string) ContainerFactory::getInstance()
+            ->getContainer()
+            ->get(ModuleSettingServiceInterface::class)
+            ->getString($name, self::MODULE_ID);
     }
 
     protected function getViewName(string $table): string

@@ -15,7 +15,7 @@ $aModule = [
         'de' => 'Ersetzt die Startseite des Admin-Bereichs durch ein Umsatz-Dashboard: Kennzahlen mit Vergleich zu Vorperiode und Vorjahr, Verlauf, Kundentypen, Zahlungsarten, Lieferländer, Topseller und offene Warenkörbe.',
         'en' => 'Replaces the admin start page with a sales dashboard: KPIs compared with the previous period and last year, trend, customer types, payment methods, delivery countries, top sellers and open baskets.',
     ],
-    'version' => '6.0.0',
+    'version' => '7.0.0',
     'author' => 'foun10 GmbH',
     'email' => 'info@foun10.de',
     'extend' => [
@@ -24,14 +24,10 @@ $aModule = [
     'controllers' => [
         'foun10_dashboard' => DashboardController::class,
     ],
-    'templates' => [
-        'foun10_dashboard.tpl' => 'foun10/Dashboard/views/admin/tpl/foun10_dashboard.tpl',
-        'foun10_dashboard_tile.tpl' => 'foun10/Dashboard/views/admin/tpl/foun10_dashboard_tile.tpl',
-        'foun10_dashboard_delta.tpl' => 'foun10/Dashboard/views/admin/tpl/foun10_dashboard_delta.tpl',
-        'foun10_dashboard_bars.tpl' => 'foun10/Dashboard/views/admin/tpl/foun10_dashboard_bars.tpl',
-        'foun10_dashboard_bar_row.tpl' => 'foun10/Dashboard/views/admin/tpl/foun10_dashboard_bar_row.tpl',
-        'foun10_dashboard_topseller_rows.tpl' => 'foun10/Dashboard/views/admin/tpl/foun10_dashboard_topseller_rows.tpl',
-    ],
+    // Empty on purpose: OXID 7 mounts views/twig/ as a Twig namespace under the
+    // module id automatically, so templates are referenced as
+    // '@foun10Dashboard/admin/<name>.html.twig' instead of being registered here.
+    'templates' => [],
     'settings' => [
         [
             'group' => 'foun10Dashboard',

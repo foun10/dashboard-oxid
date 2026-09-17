@@ -1,0 +1,11 @@
+{# One delta line of a KPI tile. For all KPIs shown, up is good. #}
+{% set deltaChange = oView.getChange(tileValue, deltaCompare) %}
+{% set deltaDirection = oView.getChangeDirection(deltaChange) %}
+{% set deltaTone = deltaDirection == 'up' ? 'good' : (deltaDirection == 'flat' ? 'flat' : 'bad') %}
+<li class="f10d-delta f10d-delta--{{ deltaTone }}"
+    data-tip="{{ translate({ ident: deltaRangeLabel }) }} {{ oView.formatRange(deltaRange) }}: {% if tileFormat == 'money' %}{{ oView.formatMoney(deltaCompare, 0) }}{% else %}{{ oView.formatNumber(deltaCompare) }}{% endif %}"
+    tabindex="0">
+    <span class="f10d-delta-icon" aria-hidden="true">{% if deltaDirection == 'up' %}▲{% elseif deltaDirection == 'down' %}▼{% else %}•{% endif %}</span>
+    <span class="f10d-delta-value">{{ oView.formatChange(deltaChange) }}</span>
+    <span class="f10d-delta-label">{{ translate({ ident: deltaLabel }) }}</span>
+</li>

@@ -5,9 +5,8 @@
     // the extension need a running shop and are covered by the integration suite; mutating them
     // would only produce uncovered mutants that say nothing about the tests that exist.
     //
-    // Infection runs as a PHAR rather than a require-dev dependency: it needs PHP 8.1+ while
-    // this line supports PHP 7.4 upwards - as require-dev it would break dependency resolution
-    // across the lower half of the CI matrix.
+    // Infection runs as a PHAR rather than a require-dev dependency, so that its own
+    // dependencies never take part in resolving the module's.
     "source": {
         "directories": [
             "src/Core"

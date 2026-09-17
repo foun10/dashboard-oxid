@@ -8,6 +8,16 @@ Each OXID line has its own release series: `7.x` on the `b-7.x` branch for OXID 
 `b-6.x` branch for OXID 6 - the major version tracks the OXID line it targets, not a generation
 of the module. The two are developed in parallel, so a fix usually appears in both.
 
+## [7.0.0] - 2026-09-17
+
+First public release for OXID 7, functionally identical to `6.0.0`. Templates are Twig, module
+settings are read through OXID 7's module setting service, and the stylesheet and script are
+published as module assets.
+
+### Added
+
+- Everything listed under `6.0.0` below.
+
 ## [6.0.0] - 2026-09-17
 
 First public release for OXID 6. The module existed internally before this; the public history
@@ -37,4 +47,5 @@ and the version numbering start here.
 - The customer-type breakdown and the yearly comparison read all completed orders in one grouped
   query each. Both are cached, but on very large order tables the first load after the cache
   expires is noticeable.
-- Content other modules add to the admin home page (`home.tpl`) is no longer shown.
+- Content other modules add to the admin home page (`home.tpl` on OXID 6, `home.html.twig` on
+  OXID 7) is no longer shown.

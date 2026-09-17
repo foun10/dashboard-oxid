@@ -3,8 +3,8 @@
 [![CI b-7.x](https://img.shields.io/github/actions/workflow/status/foun10/dashboard-oxid/ci.yml?branch=b-7.x&label=CI%20b-7.x)](https://github.com/foun10/dashboard-oxid/actions/workflows/ci.yml?query=branch%3Ab-7.x)
 [![CI b-6.x](https://img.shields.io/github/actions/workflow/status/foun10/dashboard-oxid/ci.yml?branch=b-6.x&label=CI%20b-6.x)](https://github.com/foun10/dashboard-oxid/actions/workflows/ci.yml?query=branch%3Ab-6.x)
 [![Latest Release](https://img.shields.io/github/v/release/foun10/dashboard-oxid?sort=semver)](https://github.com/foun10/dashboard-oxid/releases)
-[![PHP](https://img.shields.io/badge/PHP-%5E7.4%20%7C%7C%20%5E8.0-777BB4?logo=php&logoColor=white)](#compatibility)
-[![OXID eShop](https://img.shields.io/badge/OXID%20eShop-6.2%20%E2%80%93%206.5-e30613)](#compatibility)
+[![PHP](https://img.shields.io/badge/PHP-%5E8.0-777BB4?logo=php&logoColor=white)](#compatibility)
+[![OXID eShop](https://img.shields.io/badge/OXID%20eShop-7.0%20%E2%80%93%207.5-e30613)](#compatibility)
 [![License](https://img.shields.io/badge/license-GPL--3.0--only-blue)](LICENSE)
 
 > Replaces the OXID eShop admin start page with a sales dashboard: revenue, orders and new
@@ -31,10 +31,12 @@ This is not a statement of intent — if a combination is listed here, CI proves
 
 | OXID eShop | PHP |
 |---|---|
-| 6.2 | 7.4 |
-| 6.3 | 7.4, 8.0 |
-| 6.4 | 7.4, 8.0 |
-| 6.5 | 7.4, 8.0, 8.1 |
+| 7.0 | 8.0, 8.1 |
+| 7.1 | 8.1, 8.2 |
+| 7.2 | 8.2, 8.3 |
+| 7.3 | 8.2, 8.3, 8.4 |
+| 7.4 | 8.2, 8.3, 8.4 |
+| 7.5 | 8.3, 8.4, 8.5 |
 
 <!-- ci-matrix:end -->
 
@@ -111,7 +113,7 @@ show, and the dashboard says so.
   assigned through their customer's shop — unless customer accounts are shared between shops
   (`blMallUsers`), where OXID uses one saved basket everywhere and the list shows all of them.
   CI covers the Community Edition only.
-- **Other modules that add content to the admin home page** (`home.tpl`) are not shown
+- **Other modules that add content to the admin home page** (`home.html.twig`) are not shown
   anymore, because the dashboard replaces that page.
 
 ## Development & Testing
@@ -123,7 +125,7 @@ composer tests-unit
 # Integration tests (require an installed OXID eShop with the module activated)
 composer tests-integration
 
-# Mutation testing (Infection, PHP 8.1+)
+# Mutation testing (Infection, PHP 8.2+)
 composer tests-mutation
 ```
 

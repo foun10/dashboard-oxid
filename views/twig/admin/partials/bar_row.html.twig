@@ -1,0 +1,21 @@
+{# One bar of bars.html.twig (barItem, barItems, barLabelPrefix). barLabel is plain text here and
+   escaped on output - database labels go through oView.escape() first, which keeps the entities
+   OXID already stored instead of encoding them twice. #}
+{% if barLabelPrefix %}
+    {% set barLabel = translate({ ident: (barLabelPrefix ~ barItem.id)|upper }) %}
+{% elseif barItem.label %}
+    {% set barLabel = oView.escape(barItem.label) %}
+{% else %}
+    {% set barLabel = translate({ ident: "FOUN10_DASHBOARD_UNKNOWN" }) %}
+{% endif %}
+{% set barLabelHtml = barLabelPrefix or not barItem.label ? barLabel|e : barLabel %}
+<li class="f10d-bar-row" tabindex="0"
+    data-tip="{{ barLabelHtml|raw }} · {{ translate({ ident: "FOUN10_DASHBOARD_KPI_AVERAGE" }) }} {{ oView.formatAverage(barItem.revenue, barItem.orders) }}">
+    <div class="f10d-bar-text">
+        <span class="f10d-bar-label">{{ barLabelHtml|raw }}</span>
+        <span class="f10d-bar-value"><span class="f10d-bar-orders">{{ oView.formatNumber(barItem.orders) }} {{ translate({ ident: "FOUN10_DASHBOARD_ORDERS_ABBR" }) }}</span> {{ oView.formatMoney(barItem.revenue, 0) }} <span class="f10d-muted f10d-bar-share">{{ oView.formatPercent(barItem.share, 0) }}</span></span>
+    </div>
+    <div class="f10d-bar-track">
+        <span class="f10d-bar" style="width: {{ oView.getBarWidth(barItem.revenue, barItems.max) }}%"></span>
+    </div>
+</li>

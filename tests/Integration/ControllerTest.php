@@ -8,6 +8,8 @@ use foun10\Dashboard\Controller\Admin\DashboardController;
 use foun10\Dashboard\Extension\Application\Controller\Admin\NavigationController;
 use OxidEsales\Eshop\Core\Registry;
 use OxidEsales\Eshop\Core\Utils;
+use OxidEsales\EshopCommunity\Internal\Container\ContainerFactory;
+use OxidEsales\EshopCommunity\Internal\Framework\Templating\TemplateRendererBridgeInterface;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -54,7 +56,7 @@ class ControllerTest extends TestCase
 
     public function testHomeFrameRedirectsToTheDashboard(): void
     {
-        $_GET['item'] = 'home.tpl';
+        $_GET['item'] = 'home.html.twig';
 
         $this->navigation([])->render();
 
@@ -66,7 +68,7 @@ class ControllerTest extends TestCase
 
     public function testHomeFrameHandsTheStartupMessagesToTheDashboard(): void
     {
-        $_GET['item'] = 'home.tpl';
+        $_GET['item'] = 'home.html.twig';
 
         $this->navigation(['warning' => 'Delete the setup directory', 'message' => ''])->render();
 
@@ -79,7 +81,7 @@ class ControllerTest extends TestCase
 
     public function testHomeFrameWithoutMessagesClearsOldOnes(): void
     {
-        $_GET['item'] = 'home.tpl';
+        $_GET['item'] = 'home.html.twig';
         Registry::getSession()->setVariable(DashboardController::SESSION_MESSAGES, ['warning' => 'stale']);
 
         $this->navigation([])->render();
@@ -90,7 +92,7 @@ class ControllerTest extends TestCase
 
     public function testNavigationReloadSkipsTheChecksAndStillRedirects(): void
     {
-        $_GET['item'] = 'home.tpl';
+        $_GET['item'] = 'home.html.twig';
         $_GET['navReload'] = '1';
 
         $this->navigation(['warning' => 'must not appear'])->render();
@@ -101,9 +103,9 @@ class ControllerTest extends TestCase
 
     public function testOtherNavigationFramesAreLeftAlone(): void
     {
-        $_GET['item'] = 'header.tpl';
+        $_GET['item'] = 'header.html.twig';
 
-        self::assertSame('header.tpl', $this->navigation()->render());
+        self::assertSame('header.html.twig', $this->navigation()->render());
         self::assertSame([], $this->utils->redirects);
     }
 
@@ -111,7 +113,7 @@ class ControllerTest extends TestCase
     {
         unset($_GET['item']);
 
-        self::assertSame('nav_frame.tpl', $this->navigation()->render());
+        self::assertSame('nav_frame', $this->navigation()->render());
         self::assertSame([], $this->utils->redirects);
     }
 
@@ -134,7 +136,7 @@ class ControllerTest extends TestCase
 
         $controller = $this->dashboard();
 
-        self::assertSame('foun10_dashboard.tpl', $controller->render());
+        self::assertSame('@foun10Dashboard/admin/foun10_dashboard.html.twig', $controller->render());
         self::assertSame('custom', $controller->getViewDataElement('dashboardPeriod'));
         self::assertSame('&period=custom&from=2011-03-01&to=2011-03-31', $controller->getViewDataElement('dashboardPeriodQuery'));
         self::assertSame(5, $controller->getViewDataElement('dashboard')['current']['orders']);
@@ -242,14 +244,15 @@ class ControllerTest extends TestCase
         $template = $controller->render();
         // what ShopControl does before rendering - it provides e.g. the charset
         $controller->addGlobalParams();
-        $smarty = Registry::getUtilsView()->getSmarty();
-        foreach ($controller->getViewData() as $key => $value) {
-            $smarty->assign($key, $value);
-        }
-        $smarty->assign('oView', $controller);
-        $smarty->assign('oViewConf', $controller->getViewConfig());
+        $context = $controller->getViewData() + [
+            'oView' => $controller,
+            'oViewConf' => $controller->getViewConfig(),
+        ];
 
-        return $smarty->fetch($template);
+        return ContainerFactory::getInstance()->getContainer()
+            ->get(TemplateRendererBridgeInterface::class)
+            ->getTemplateRenderer()
+            ->renderTemplate($template, $context);
     }
 
     private function navigation(?array $startupMessages = null): NavigationController
@@ -267,7 +270,7 @@ class ControllerTest extends TestCase
                     $this->startupMessages = $startupMessages;
                 }
 
-                protected function _doStartUpChecks() // phpcs:ignore PSR2.Methods.MethodDeclaration.Underscore
+                protected function doStartUpChecks()
                 {
                     return $this->startupMessages;
                 }

@@ -1,0 +1,18 @@
+{# KPI tile: value of current[tileKey] plus its change vs. the previous period and last year. #}
+{% set tileValue = current[tileKey] %}
+<div class="f10d-tile{% if tileHero %} f10d-tile--hero{% endif %}">
+    <div class="f10d-tile-label">{{ translate({ ident: tileLabel }) }}</div>
+    <div class="f10d-tile-value">
+        {% if tileFormat == 'money' %}
+            {{ oView.formatMoney(tileValue, 0) }}
+        {% else %}
+            {{ oView.formatNumber(tileValue) }}
+        {% endif %}
+    </div>
+    <ul class="f10d-deltas">
+        {% if previous %}
+            {% include '@foun10Dashboard/admin/partials/delta.html.twig' with {deltaLabel: 'FOUN10_DASHBOARD_VS_PREVIOUS', deltaRangeLabel: 'FOUN10_DASHBOARD_PREVIOUS_PERIOD', deltaRange: dashboard.ranges.previous, deltaCompare: previous[tileKey]} %}
+        {% endif %}
+        {% include '@foun10Dashboard/admin/partials/delta.html.twig' with {deltaLabel: 'FOUN10_DASHBOARD_VS_LAST_YEAR', deltaRangeLabel: 'FOUN10_DASHBOARD_SERIES_LAST_YEAR', deltaRange: dashboard.ranges.lastYear, deltaCompare: lastYear[tileKey]} %}
+    </ul>
+</div>

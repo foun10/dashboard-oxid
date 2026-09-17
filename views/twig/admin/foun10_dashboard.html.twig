@@ -1,0 +1,281 @@
+{#
+    Admin start page. Every value that comes from the database or a translation
+    is escaped by Twig; the few things that are HTML or JSON on purpose carry
+    |raw - the admin links (getSelfLink() is already entity-encoded), OXID's
+    start-up messages and the chart data.
+#}
+{% set current = dashboard.current %}
+{% set previous = dashboard.previous %}
+{% set lastYear = dashboard.lastYear %}
+{% set baskets = dashboard.openBaskets %}
+{% set dashboardLink = oView.getAdminLink('foun10_dashboard') %}
+<!DOCTYPE html>
+<html lang="{{ dashboardLocale|slice(0, 2) }}">
+<head>
+    <meta charset="{{ charset|default('UTF-8') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ translate({ ident: "FOUN10_DASHBOARD_TITLE" }) }}</title>
+    <link rel="stylesheet" href="{{ oView.getAssetUrl('css/dashboard.css')|raw }}">
+</head>
+<body class="f10d">
+<script>
+    try {
+        parent.sShopTitle = "{{ actshop|e('js') }}";
+        parent.setTitle();
+    } catch (e) {}
+</script>
+
+<main class="f10d-page">
+    <header class="f10d-head">
+        <div>
+            <h1 class="f10d-title">{{ translate({ ident: "FOUN10_DASHBOARD_TITLE" }) }}</h1>
+            <p class="f10d-sub">
+                {{ translate({ ident: "FOUN10_DASHBOARD_REVENUE_NOTE" }) }}
+                · {{ translate({ ident: "FOUN10_DASHBOARD_GENERATED_AT" }) }} {{ oView.formatDateTime(dashboard.generatedAt) }}
+            </p>
+        </div>
+    </header>
+
+    {% if dashboardMessages %}
+        {# OXID's start-up checks (setup directory, config permissions, updates), as on the standard home page. #}
+        <section class="f10d-messages" role="status">
+            {% for messageClass, message in dashboardMessages %}
+                <p class="f10d-message f10d-message--{{ messageClass }}">{{ message|raw }}</p>
+            {% endfor %}
+        </section>
+    {% endif %}
+
+    <nav class="f10d-filters" aria-label="{{ translate({ ident: "FOUN10_DASHBOARD_PERIOD" }) }}">
+        <div class="f10d-segmented">
+            {% for periodKey in dashboardPeriods %}
+                <a class="f10d-segment{% if periodKey == dashboardPeriod %} is-active{% endif %}"
+                   href="{{ dashboardLink|raw }}&period={{ periodKey }}"
+                   {% if periodKey == dashboardPeriod %}aria-current="true"{% endif %}>
+                    {{ translate({ ident: ("FOUN10_DASHBOARD_PERIOD_" ~ periodKey)|upper }) }}
+                </a>
+            {% endfor %}
+        </div>
+        <form class="f10d-range{% if dashboardPeriod == 'custom' %} is-active{% endif %}" id="f10d-range"
+              data-url="{{ dashboardLink|raw }}&period=custom">
+            <label for="f10d-range-from">{{ translate({ ident: "FOUN10_DASHBOARD_PERIOD_CUSTOM" }) }}</label>
+            <input type="date" id="f10d-range-from" name="from" required
+                   value="{{ dashboardFrom }}" min="{{ dashboardMinDate }}" max="{{ dashboardToday }}"
+                   aria-label="{{ translate({ ident: "FOUN10_DASHBOARD_RANGE_FROM" }) }}">
+            <span aria-hidden="true">–</span>
+            <input type="date" id="f10d-range-to" name="to" required
+                   value="{{ dashboardTo }}" min="{{ dashboardMinDate }}" max="{{ dashboardToday }}"
+                   aria-label="{{ translate({ ident: "FOUN10_DASHBOARD_RANGE_TO" }) }}">
+            <button type="submit">{{ translate({ ident: "FOUN10_DASHBOARD_RANGE_APPLY" }) }}</button>
+        </form>
+        <a class="f10d-refresh" href="{{ dashboardLink|raw }}{{ dashboardPeriodQuery }}&refresh=1">
+            <span aria-hidden="true">↻</span> {{ translate({ ident: "FOUN10_DASHBOARD_REFRESH" }) }}
+        </a>
+    </nav>
+
+    {# ---- KPIs ---- #}
+    <section class="f10d-kpis">
+        <div class="f10d-card f10d-hero">
+            {% include '@foun10Dashboard/admin/partials/tile.html.twig' with {tileLabel: 'FOUN10_DASHBOARD_KPI_REVENUE', tileFormat: 'money', tileKey: 'revenue', tileHero: true} %}
+        </div>
+        <div class="f10d-card f10d-tiles">
+            {% include '@foun10Dashboard/admin/partials/tile.html.twig' with {tileLabel: 'FOUN10_DASHBOARD_KPI_ORDERS', tileFormat: 'number', tileKey: 'orders', tileHero: false} %}
+            {% include '@foun10Dashboard/admin/partials/tile.html.twig' with {tileLabel: 'FOUN10_DASHBOARD_KPI_AVERAGE', tileFormat: 'money', tileKey: 'average', tileHero: false} %}
+            {% include '@foun10Dashboard/admin/partials/tile.html.twig' with {tileLabel: 'FOUN10_DASHBOARD_KPI_NEW_CUSTOMERS', tileFormat: 'number', tileKey: 'newCustomers', tileHero: false} %}
+        </div>
+    </section>
+
+    {# ---- Trend ---- #}
+    <section class="f10d-card">
+        <div class="f10d-card-head">
+            <div>
+                <h2 class="f10d-h2" id="f10d-trend-title"
+                    data-title-revenue="{{ translate({ ident: "FOUN10_DASHBOARD_TREND_TITLE" }) }}"
+                    data-title-orders="{{ translate({ ident: "FOUN10_DASHBOARD_TREND_TITLE_ORDERS" }) }}">{{ translate({ ident: "FOUN10_DASHBOARD_TREND_TITLE" }) }}</h2>
+                <p class="f10d-hint">{{ translate({ ident: ("FOUN10_DASHBOARD_TREND_BUCKET_" ~ dashboard.trend.bucket)|upper }) }}</p>
+            </div>
+            <div class="f10d-trend-controls">
+                <div class="f10d-trend-switches">
+                    <label class="f10d-check">
+                        <input type="checkbox" id="f10d-trend-cumulative">
+                        {{ translate({ ident: "FOUN10_DASHBOARD_CUMULATIVE" }) }}
+                    </label>
+                    <div class="f10d-segmented f10d-segmented--small" role="group" aria-label="{{ translate({ ident: "FOUN10_DASHBOARD_TREND_METRIC" }) }}">
+                        <button type="button" class="f10d-segment is-active" data-metric="revenue" aria-pressed="true">{{ translate({ ident: "FOUN10_DASHBOARD_METRIC_REVENUE" }) }}</button>
+                        <button type="button" class="f10d-segment" data-metric="orders" aria-pressed="false">{{ translate({ ident: "FOUN10_DASHBOARD_KPI_ORDERS" }) }}</button>
+                    </div>
+                </div>
+                <ul class="f10d-legend">
+                    <li><span class="f10d-key f10d-key--current" aria-hidden="true"></span>{{ translate({ ident: "FOUN10_DASHBOARD_SERIES_CURRENT" }) }}</li>
+                    <li><span class="f10d-key f10d-key--last-year" aria-hidden="true"></span>{{ translate({ ident: "FOUN10_DASHBOARD_SERIES_LAST_YEAR" }) }}</li>
+                </ul>
+            </div>
+        </div>
+        <div class="f10d-chart" id="f10d-trend"
+             data-label-current="{{ translate({ ident: "FOUN10_DASHBOARD_SERIES_CURRENT" }) }}"
+             data-label-last-year="{{ translate({ ident: "FOUN10_DASHBOARD_SERIES_LAST_YEAR" }) }}"
+             data-label-orders="{{ translate({ ident: "FOUN10_DASHBOARD_ORDERS_SHORT" }) }}"
+             data-label-cumulative="{{ translate({ ident: "FOUN10_DASHBOARD_CUMULATIVE_UNTIL" }) }}"
+             data-label-week="{{ translate({ ident: "FOUN10_DASHBOARD_WEEK_SHORT" }) }}"
+             data-label-date="{{ translate({ ident: "FOUN10_DASHBOARD_TABLE_DATE" }) }}"
+             data-label-revenue="{{ translate({ ident: "FOUN10_DASHBOARD_KPI_REVENUE" }) }}"></div>
+        <details class="f10d-table-toggle">
+            <summary>{{ translate({ ident: "FOUN10_DASHBOARD_SHOW_TABLE" }) }}</summary>
+            <div class="f10d-table-scroll" id="f10d-trend-table"></div>
+        </details>
+        <script type="application/json" id="f10d-trend-data">{{ dashboardChart|raw }}</script>
+    </section>
+
+    {# ---- Breakdowns ---- #}
+    <section class="f10d-grid f10d-grid--3">
+        <div class="f10d-card">
+            <h2 class="f10d-h2">{{ translate({ ident: "FOUN10_DASHBOARD_CUSTOMER_TYPES" }) }}</h2>
+            <p class="f10d-hint">{{ translate({ ident: "FOUN10_DASHBOARD_CUSTOMER_TYPES_HINT" }) }}</p>
+            {% include '@foun10Dashboard/admin/partials/bars.html.twig' with {barItems: dashboard.customerTypes, barLabelPrefix: 'FOUN10_DASHBOARD_CUSTOMER_TYPE_'} %}
+        </div>
+        <div class="f10d-card">
+            <h2 class="f10d-h2">{{ translate({ ident: "FOUN10_DASHBOARD_PAYMENTS" }) }}</h2>
+            {% include '@foun10Dashboard/admin/partials/bars.html.twig' with {barItems: dashboard.payments, barLabelPrefix: ''} %}
+        </div>
+        <div class="f10d-card">
+            <h2 class="f10d-h2">{{ translate({ ident: "FOUN10_DASHBOARD_COUNTRIES" }) }}</h2>
+            <p class="f10d-hint">{{ translate({ ident: "FOUN10_DASHBOARD_COUNTRIES_HINT" }) }}</p>
+            {% include '@foun10Dashboard/admin/partials/bars.html.twig' with {barItems: dashboard.countries, barLabelPrefix: ''} %}
+        </div>
+    </section>
+
+    <section class="f10d-grid f10d-grid--wide">
+        {# ---- Top sellers ---- #}
+        <div class="f10d-card">
+            <h2 class="f10d-h2">{{ translate({ ident: "FOUN10_DASHBOARD_TOP_SELLERS" }) }}</h2>
+            <p class="f10d-hint">{{ translate({ ident: "FOUN10_DASHBOARD_TOP_SELLERS_HINT" }) }}</p>
+            {% if dashboard.topSellers.items %}
+                <div class="f10d-table-scroll">
+                    <table class="f10d-table">
+                        <thead>
+                        <tr>
+                            <th class="f10d-num">#</th>
+                            <th>{{ translate({ ident: "FOUN10_DASHBOARD_COL_PRODUCT" }) }}</th>
+                            <th class="f10d-num">{{ translate({ ident: "FOUN10_DASHBOARD_COL_QTY" }) }}</th>
+                            <th class="f10d-num">{{ translate({ ident: "FOUN10_DASHBOARD_KPI_REVENUE" }) }}</th>
+                            <th>{{ translate({ ident: "FOUN10_DASHBOARD_COL_STOCK" }) }}</th>
+                        </tr>
+                        </thead>
+                        <tbody id="f10d-topsellers">
+                        {% include '@foun10Dashboard/admin/partials/topseller_rows.html.twig' with {topSellerPage: dashboard.topSellers} %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if dashboard.topSellers.hasMore %}
+                    <button type="button" class="f10d-more" id="f10d-topsellers-more"
+                            data-url="{{ dashboardLink|raw }}&fnc=loadtopsellers{{ dashboardPeriodQuery }}"
+                            data-offset="{{ dashboard.topSellers.items|length }}"
+                            data-label-loading="{{ translate({ ident: "FOUN10_DASHBOARD_LOADING" }) }}"
+                            data-label-error="{{ translate({ ident: "FOUN10_DASHBOARD_LOAD_ERROR" }) }}">{{ translate({ ident: "FOUN10_DASHBOARD_SHOW_MORE" }) }}</button>
+                {% endif %}
+            {% else %}
+                <p class="f10d-empty">{{ translate({ ident: "FOUN10_DASHBOARD_NO_DATA" }) }}</p>
+            {% endif %}
+        </div>
+
+        {# ---- Open baskets (always last 24h, independent of the period filter) ---- #}
+        <div class="f10d-card">
+            <div class="f10d-card-head">
+                <div>
+                    <h2 class="f10d-h2">{{ translate({ ident: "FOUN10_DASHBOARD_BASKETS" }) }}</h2>
+                    <p class="f10d-hint">{{ translate({ ident: "FOUN10_DASHBOARD_BASKETS_HINT" }) }}</p>
+                </div>
+            </div>
+
+            {% if not baskets.available %}
+                <p class="f10d-empty">{{ translate({ ident: "FOUN10_DASHBOARD_BASKETS_UNAVAILABLE" }) }}</p>
+            {% else %}
+                <div class="f10d-mini-stats">
+                    <div>
+                        <div class="f10d-mini-label">{{ translate({ ident: "FOUN10_DASHBOARD_BASKETS_OPEN" }) }}</div>
+                        <div class="f10d-mini-value">{{ oView.formatNumber(baskets.open) }}</div>
+                        <div class="f10d-muted">{{ oView.formatNumber(baskets.openQty) }} {{ translate({ ident: "FOUN10_DASHBOARD_ITEMS" }) }}</div>
+                    </div>
+                    <div>
+                        <div class="f10d-mini-label">
+                            {{ translate({ ident: "FOUN10_DASHBOARD_BASKETS_VALUE" }) }}
+                            ({% if baskets.netPrices %}{{ translate({ ident: "FOUN10_DASHBOARD_NET" }) }}{% else %}{{ translate({ ident: "FOUN10_DASHBOARD_GROSS" }) }}{% endif %})
+                        </div>
+                        <div class="f10d-mini-value">{{ oView.formatMoney(baskets.openValue, 0) }}</div>
+                    </div>
+                </div>
+
+                {% if baskets.list %}
+                    <div class="f10d-table-scroll">
+                        <table class="f10d-table">
+                            <thead>
+                            <tr>
+                                <th>{{ translate({ ident: "FOUN10_DASHBOARD_COL_CUSTOMER" }) }}</th>
+                                <th class="f10d-num">{{ translate({ ident: "FOUN10_DASHBOARD_COL_QTY" }) }}</th>
+                                <th class="f10d-num">{{ translate({ ident: "FOUN10_DASHBOARD_COL_VALUE" }) }}</th>
+                                <th class="f10d-num">{{ translate({ ident: "FOUN10_DASHBOARD_COL_CHANGED" }) }}</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {% for basket in baskets.list %}
+                                <tr>
+                                    <td class="f10d-product">
+                                        <a href="{{ oView.getAdminLink('admin_user', basket.userId)|raw }}" data-nav="admin_user">{% if basket.name %}{{ oView.escape(basket.name)|raw }}{% else %}{{ oView.escape(basket.email)|raw }}{% endif %}</a>
+                                        {% if basket.name %}<span class="f10d-muted">{{ oView.escape(basket.email)|raw }}</span>{% endif %}
+                                    </td>
+                                    <td class="f10d-num">{{ oView.formatNumber(basket.qty) }}</td>
+                                    <td class="f10d-num">{{ oView.formatMoney(basket.value, 0) }}</td>
+                                    <td class="f10d-num f10d-muted">{{ oView.formatTimeOrDate(basket.changed) }}</td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="f10d-empty">{{ translate({ ident: "FOUN10_DASHBOARD_BASKETS_NONE" }) }}</p>
+                {% endif %}
+            {% endif %}
+        </div>
+    </section>
+
+    {# ---- Yearly comparison (all years, independent of the period filter) ---- #}
+    <section class="f10d-card" id="f10d-yearly">
+        <div class="f10d-card-head">
+            <div>
+                <h2 class="f10d-h2">{{ translate({ ident: "FOUN10_DASHBOARD_YEARLY_TITLE" }) }}</h2>
+                <p class="f10d-hint">{{ translate({ ident: "FOUN10_DASHBOARD_YEARLY_HINT" }) }}</p>
+            </div>
+            <div class="f10d-trend-switches">
+                <label class="f10d-check">
+                    <input type="checkbox" id="f10d-yearly-cumulative">
+                    {{ translate({ ident: "FOUN10_DASHBOARD_CUMULATIVE" }) }}
+                </label>
+                <div class="f10d-segmented f10d-segmented--small" role="group" aria-label="{{ translate({ ident: "FOUN10_DASHBOARD_TREND_METRIC" }) }}">
+                    <button type="button" class="f10d-segment is-active" data-yearly-metric="revenue" aria-pressed="true">{{ translate({ ident: "FOUN10_DASHBOARD_METRIC_REVENUE" }) }}</button>
+                    <button type="button" class="f10d-segment" data-yearly-metric="orders" aria-pressed="false">{{ translate({ ident: "FOUN10_DASHBOARD_KPI_ORDERS" }) }}</button>
+                </div>
+            </div>
+        </div>
+        <div class="f10d-year-chips" id="f10d-year-chips" role="group"
+             aria-label="{{ translate({ ident: "FOUN10_DASHBOARD_YEARLY_SELECT" }) }}"
+             data-label-max="{{ translate({ ident: "FOUN10_DASHBOARD_YEARLY_MAX" }) }}"></div>
+        <div class="f10d-chart" id="f10d-yearly-chart"
+             data-label-orders="{{ translate({ ident: "FOUN10_DASHBOARD_ORDERS_SHORT" }) }}"
+             data-label-to-date="{{ translate({ ident: "FOUN10_DASHBOARD_YEARLY_TO_DATE" }) }}"
+             data-label-title="{{ translate({ ident: "FOUN10_DASHBOARD_YEARLY_TITLE" }) }}"
+             data-label-year="{{ translate({ ident: "FOUN10_DASHBOARD_YEARLY_YEAR" }) }}"
+             data-label-total="{{ translate({ ident: "FOUN10_DASHBOARD_YEARLY_TOTAL" }) }}"
+             data-label-best="{{ translate({ ident: "FOUN10_DASHBOARD_YEARLY_BEST" }) }}"
+             data-label-previous-year="{{ translate({ ident: "FOUN10_DASHBOARD_SERIES_LAST_YEAR" }) }}"
+             data-label-cumulative="{{ translate({ ident: "FOUN10_DASHBOARD_CUMULATIVE_UNTIL" }) }}"></div>
+        <details class="f10d-table-toggle">
+            <summary>{{ translate({ ident: "FOUN10_DASHBOARD_SHOW_TABLE" }) }}</summary>
+            <div class="f10d-table-scroll" id="f10d-yearly-table"></div>
+        </details>
+        <script type="application/json" id="f10d-yearly-data">{{ dashboardYearly|raw }}</script>
+    </section>
+</main>
+
+<div class="f10d-tooltip" id="f10d-tooltip" role="status" hidden></div>
+<script src="{{ oView.getAssetUrl('js/dashboard.js')|raw }}"></script>
+</body>
+</html>

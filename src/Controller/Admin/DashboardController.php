@@ -9,6 +9,8 @@ use foun10\Dashboard\Core\Formatter;
 use foun10\Dashboard\Core\Period;
 use OxidEsales\Eshop\Application\Controller\Admin\AdminController;
 use OxidEsales\Eshop\Core\Registry;
+use OxidEsales\EshopCommunity\Internal\Framework\Templating\TemplateRendererBridgeInterface;
+use Throwable;
 
 /**
  * Admin start page, opened in the main frame by the NavigationController
@@ -24,7 +26,9 @@ class DashboardController extends AdminController
      */
     public const SESSION_MESSAGES = 'foun10DashboardStartupMessages';
 
-    protected $_sThisTemplate = 'foun10_dashboard.tpl';
+    protected $_sThisTemplate = '@foun10Dashboard/admin/foun10_dashboard.html.twig';
+
+    protected const TOP_SELLER_ROWS_TEMPLATE = '@foun10Dashboard/admin/partials/topseller_rows.html.twig';
 
     /** @var Formatter|null */
     protected $formatter;
@@ -82,15 +86,19 @@ class DashboardController extends AdminController
             (int) $this->getRequestString('offset')
         );
 
-        $smarty = Registry::getUtilsView()->getSmarty();
-        $smarty->assign('oView', $this);
-        $smarty->assign('oViewConf', $this->getViewConfig());
-        $smarty->assign('topSellerPage', $page);
+        $html = $this->getContainer()
+            ->get(TemplateRendererBridgeInterface::class)
+            ->getTemplateRenderer()
+            ->renderTemplate(self::TOP_SELLER_ROWS_TEMPLATE, [
+                'oView' => $this,
+                'oViewConf' => $this->getViewConfig(),
+                'topSellerPage' => $page,
+            ]);
 
         $utils = Registry::getUtils();
         $utils->setHeader('Content-Type: application/json; charset=UTF-8');
         $utils->showMessageAndExit((string) json_encode([
-            'html' => $smarty->fetch('foun10_dashboard_topseller_rows.tpl'),
+            'html' => $html,
             'offset' => $page['offset'] + count($page['items']),
             'hasMore' => $page['hasMore'],
         ]));
@@ -157,16 +165,23 @@ class DashboardController extends AdminController
     }
 
     /**
-     * Module asset URL with the file's modification time appended, so
-     * browsers pick up a changed script/stylesheet right after a deploy.
+     * Module asset URL (a path below assets/) with the file's modification
+     * time appended, so browsers pick up a changed script/stylesheet right
+     * after a deploy. getModulePath() throws when the published file is
+     * missing - the URL is still returned then, the version just stays '1'.
      */
     public function getAssetUrl(string $path): string
     {
         $viewConfig = $this->getViewConfig();
-        $file = (string) $viewConfig->getModulePath('foun10Dashboard', $path);
-        $version = is_file($file) ? (string) filemtime($file) : '1';
 
-        return $viewConfig->getModuleUrl('foun10Dashboard', $path) . '?v=' . $version;
+        try {
+            $file = (string) $viewConfig->getModulePath(DashboardData::MODULE_ID, $path);
+            $version = is_file($file) ? (string) filemtime($file) : '1';
+        } catch (Throwable $e) {
+            $version = '1';
+        }
+
+        return $viewConfig->getModuleUrl(DashboardData::MODULE_ID, $path) . '?v=' . $version;
     }
 
     public function getAdminLink(string $class, string $oxid = ''): string

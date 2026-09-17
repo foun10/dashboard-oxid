@@ -2,10 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [b-6.x]
+    branches: [b-7.x]
     tags: ['v*']
   pull_request:
-    branches: [b-6.x]
+    branches: [b-7.x]
   workflow_dispatch:
 
 permissions:
@@ -28,20 +28,28 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { oxid: '6.2', php: '7.4' }
-          - { oxid: '6.3', php: '7.4' }
-          - { oxid: '6.3', php: '8.0' }
-          - { oxid: '6.4', php: '7.4' }
-          - { oxid: '6.4', php: '8.0' }
-          - { oxid: '6.5', php: '7.4' }
-          - { oxid: '6.5', php: '8.0' }
-          - { oxid: '6.5', php: '8.1' }
+          - { oxid: '7.0', php: '8.0' }
+          - { oxid: '7.0', php: '8.1' }
+          - { oxid: '7.1', php: '8.1' }
+          - { oxid: '7.1', php: '8.2' }
+          - { oxid: '7.2', php: '8.2' }
+          - { oxid: '7.2', php: '8.3' }
+          - { oxid: '7.3', php: '8.2' }
+          - { oxid: '7.3', php: '8.3' }
+          - { oxid: '7.3', php: '8.4' }
+          - { oxid: '7.4', php: '8.2' }
+          - { oxid: '7.4', php: '8.3' }
+          - { oxid: '7.4', php: '8.4' }
+          - { oxid: '7.5', php: '8.3' }
+          - { oxid: '7.5', php: '8.4' }
+          - { oxid: '7.5', php: '8.5' }
 
     services:
       mysql:
-        image: mysql:5.7
+        image: mysql:8.0
         env:
           MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: oxid
         ports: ['3306:3306']
         options: >-
           --health-cmd="mysqladmin ping -h localhost -proot"
@@ -60,11 +68,10 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           extensions: gd, zip, bcmath, soap, mysqli, pdo_mysql
-          # Composer is pinned deliberately. The oxideshop-composer-plugin calls
-          # Filesystem::copy() with an array as third argument; up to the Symfony bundled in
-          # Composer 2.2 that parameter is untyped and coerces, from 2.3 it is bool-typed and
-          # the install dies with a TypeError. See _tooling/oxid-6-7-unterschiede.md, section 6.
-          tools: composer:2.2
+          # Composer is pinned deliberately. From 2.9 on, the advisory policy refuses to install
+          # composer/composer 2.8.8, which the OXID 7 metapackage requires - the shop install
+          # then fails outright. See _tooling/oxid-6-7-unterschiede.md, section 6.
+          tools: composer:2.8
           coverage: none
 
       - name: Cache Composer downloads
@@ -77,52 +84,42 @@ jobs:
             composer-oxid${{ matrix.oxid }}-
 
       - name: Prepare the database
-        # The service container cannot be given a command line, so the settings our local
-        # docker-compose passes as flags are applied here instead: OXID 6 needs a permissive
-        # sql_mode, and MySQL 5.7 would otherwise create the database as latin1.
+        # The service container cannot be given a command line, so the collation our local
+        # docker-compose passes as a flag is applied here instead. MySQL 8 would otherwise
+        # default to utf8mb4_0900_ai_ci, which is not what the shops are tested against.
         run: |
           mysql -h 127.0.0.1 -P 3306 -uroot -proot -e "
-            SET GLOBAL sql_mode='';
             DROP DATABASE IF EXISTS oxid;
-            CREATE DATABASE oxid CHARACTER SET utf8 COLLATE utf8_general_ci;"
+            CREATE DATABASE oxid CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
 
       - name: Install OXID ${{ matrix.oxid }}
-        # OXID 6 predates Composer 2.2's allow-plugins gate, so the OXID plugins would be
-        # blocked. Create without installing, allow them, then install.
         run: |
-          composer create-project --no-interaction --no-install \
+          composer create-project --no-interaction \
             oxid-esales/oxideshop-project shop "dev-b-${{ matrix.oxid }}-ce"
-          cd shop
-          composer config --no-plugins --no-interaction allow-plugins true
-          composer install --no-interaction
 
       - name: Set up the shop
-        # OXID 6 has no oe:setup:shop - that arrived with 7. The browser wizard does nothing
-        # more than the steps below, which is why they can be scripted.
         working-directory: shop
         run: |
-          sed -i \
-            -e 's|<dbHost>|127.0.0.1|' \
-            -e 's|<dbName>|oxid|' \
-            -e 's|<dbUser>|root|' \
-            -e 's|<dbPwd>|root|' \
-            -e 's|<sShopURL>|http://localhost/|' \
-            -e "s|<sShopDir>|$GITHUB_WORKSPACE/shop/source/|" \
-            -e "s|<sCompileDir>|$GITHUB_WORKSPACE/shop/source/tmp/|" \
-            source/config.inc.php
-          mysql -h 127.0.0.1 -P 3306 -uroot -proot --default-character-set=utf8 oxid < source/Setup/Sql/database_schema.sql
-          mysql -h 127.0.0.1 -P 3306 -uroot -proot --default-character-set=utf8 oxid < source/Setup/Sql/initial_data.sql
-          php vendor/bin/oe-eshop-db_migrate migrations:migrate --no-interaction
-          php vendor/bin/oe-eshop-db_views_generate
-          rm -rf source/Setup
+          ./vendor/bin/oe-console oe:setup:shop \
+            --db-host=127.0.0.1 --db-port=3306 \
+            --db-name=oxid --db-user=root --db-password=root \
+            --shop-url=http://localhost/ \
+            --shop-directory="$GITHUB_WORKSPACE/shop/source" \
+            --compile-directory="$GITHUB_WORKSPACE/shop/source/tmp" \
+            --language=en
+          # OXID 7.0 has no oe:theme namespace yet - the command arrived later in the 7.x
+          # line. The integration tests render no frontend templates, so a missing theme is
+          # harmless; failing the whole job over it would not be.
+          ./vendor/bin/oe-console oe:theme:activate apex \
+            || echo 'oe:theme:activate unavailable on this OXID version - skipped'
 
       - name: Install and activate the module
         working-directory: shop
         run: |
           composer config repositories.local path "$GITHUB_WORKSPACE/module"
           composer require foun10/dashboard:@dev --no-interaction
-          php vendor/bin/oe-console oe:module:install-configuration source/modules/foun10/Dashboard
-          php vendor/bin/oe-console oe:module:activate foun10Dashboard
+          ./vendor/bin/oe-console oe:module:install "$GITHUB_WORKSPACE/module"
+          ./vendor/bin/oe-console oe:module:activate foun10Dashboard
 
       - name: Install the module's dev dependencies
         working-directory: module
@@ -146,8 +143,7 @@ jobs:
 
   # Mutation testing needs no shop, so it runs once on a fixed PHP version rather than across
   # the matrix. Infection is fetched as a phar on purpose: it requires PHP 8.1+, and as a
-  # require-dev entry it would break dependency resolution on the lower half of the matrix -
-  # this branch still supports PHP 7.4.
+  # require-dev entry it would break dependency resolution on the lower half of the matrix.
   mutation:
     name: Mutation testing
     runs-on: ubuntu-latest
@@ -159,21 +155,20 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          # 8.1 is the highest PHP this branch supports, and the lowest Infection accepts.
-          php-version: '8.1'
+          php-version: '8.2'
           extensions: gd, zip, bcmath, soap, mysqli, pdo_mysql
           # pcov rather than xdebug: coverage only, and considerably faster.
           coverage: pcov
-          tools: composer:2.2
+          tools: composer:2.8
 
       - name: Install dependencies
         run: composer update --no-interaction --no-progress
 
       - name: Install Infection
-        # 0.28.x is the newest line that still runs on PHP 8.1; 0.29 requires 8.2.
+        # 0.29.x is the newest line that still runs on PHP 8.2; 0.35 requires 8.3.
         run: |
           curl -sSLo /usr/local/bin/infection \
-            https://github.com/infection/infection/releases/download/0.28.1/infection.phar
+            https://github.com/infection/infection/releases/download/0.29.14/infection.phar
           chmod +x /usr/local/bin/infection
 
       - name: Run mutation testing

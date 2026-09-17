@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace foun10\Dashboard\Tests\Integration;
 
 use foun10\Dashboard\Controller\Admin\DashboardController;
+use foun10\Dashboard\Core\DashboardData;
 use foun10\Dashboard\Extension\Application\Controller\Admin\NavigationController;
 use OxidEsales\Eshop\Core\Registry;
+use OxidEsales\EshopCommunity\Internal\Container\ContainerFactory;
+use OxidEsales\EshopCommunity\Internal\Framework\Module\Facade\ModuleSettingServiceInterface;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -72,30 +75,57 @@ class ModuleWiringTest extends TestCase
         self::assertSame(DashboardController::class, ltrim((string) $resolver->getClassNameById('foun10_dashboard'), '\\'));
     }
 
-    public function testCacheLifetimeSettingIsStoredWithItsDefault(): void
+    /**
+     * OXID 7 keeps module settings in var/configuration; the shop config does not see them.
+     */
+    public function testCacheLifetimeSettingArrivesThroughTheModuleSettingService(): void
     {
-        self::assertSame('600', (string) Registry::getConfig()->getConfigParam('foun10DashboardCacheTTL'));
+        $settings = ContainerFactory::getInstance()->getContainer()->get(ModuleSettingServiceInterface::class);
+
+        self::assertSame('600', (string) $settings->getString(DashboardData::SETTING_CACHE_TTL, DashboardData::MODULE_ID));
+        self::assertNull(Registry::getConfig()->getConfigParam(DashboardData::SETTING_CACHE_TTL));
     }
 
-    public function testEveryRegisteredTemplateExists(): void
+    /**
+     * Templates are not registered on OXID 7 - views/twig/ is mounted under the module id, and
+     * ControllerTest renders them all through that namespace. What is left to check is that no
+     * template is referenced under a name that does not exist and none lies around unused.
+     *
+     * Not done with TemplateRendererInterface::exists(): on OXID 7.0 it does not find templates
+     * in subdirectories of a module namespace, although rendering them works.
+     */
+    public function testEveryTemplateIsReferencedAndEveryReferenceExists(): void
     {
-        $aModule = [];
-        include __DIR__ . '/../../metadata.php';
-
-        self::assertNotEmpty($aModule['templates']);
-        foreach ($aModule['templates'] as $name => $path) {
-            $file = __DIR__ . '/../../' . substr($path, strlen('foun10/Dashboard/'));
-            self::assertFileExists($file, $name);
+        $root = realpath(__DIR__ . '/../../views/twig');
+        $onDisk = [];
+        $iterator = new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS));
+        foreach ($iterator as $file) {
+            $onDisk[] = '@' . DashboardData::MODULE_ID . str_replace(DIRECTORY_SEPARATOR, '/', substr($file->getPathname(), strlen($root)));
         }
 
-        $onDisk = array_map('basename', glob(__DIR__ . '/../../views/admin/tpl/*.tpl'));
-        self::assertEqualsCanonicalizing($onDisk, array_keys($aModule['templates']), 'every template is registered');
+        $sources = '';
+        foreach (array_merge(
+            [__DIR__ . '/../../src/Controller/Admin/DashboardController.php'],
+            array_map(static function (string $template) use ($root): string {
+                return $root . substr($template, strlen('@' . DashboardData::MODULE_ID));
+            }, $onDisk)
+        ) as $file) {
+            $sources .= file_get_contents($file);
+        }
+        preg_match_all('/@' . DashboardData::MODULE_ID . '\/[\w\/.-]+\.html\.twig/', $sources, $matches);
+
+        self::assertCount(6, $onDisk);
+        self::assertEqualsCanonicalizing($onDisk, array_values(array_unique($matches[0])));
     }
 
-    public function testAssetsExist(): void
+    public function testAssetsArePublished(): void
     {
-        self::assertFileExists(__DIR__ . '/../../out/src/css/dashboard.css');
-        self::assertFileExists(__DIR__ . '/../../out/src/js/dashboard.js');
+        $viewConfig = oxNew(\OxidEsales\Eshop\Core\ViewConfig::class);
+
+        foreach (['css/dashboard.css', 'js/dashboard.js'] as $asset) {
+            self::assertFileExists(__DIR__ . '/../../assets/' . $asset);
+            self::assertFileExists($viewConfig->getModulePath(DashboardData::MODULE_ID, $asset), 'published copy of ' . $asset);
+        }
     }
 
     /**
@@ -107,14 +137,15 @@ class ModuleWiringTest extends TestCase
         $keys = [];
         foreach (['de', 'en'] as $language) {
             $aLang = [];
-            include __DIR__ . '/../../views/admin/' . $language . '/foun10_dashboard_lang.php';
+            include __DIR__ . '/../../views/admin_twig/' . $language . '/foun10_dashboard_lang.php';
             $keys[$language] = array_keys($aLang);
         }
         self::assertEqualsCanonicalizing($keys['de'], $keys['en']);
 
         $used = [];
         $sources = array_merge(
-            glob(__DIR__ . '/../../views/admin/tpl/*.tpl'),
+            glob(__DIR__ . '/../../views/twig/admin/*.twig'),
+            glob(__DIR__ . '/../../views/twig/admin/partials/*.twig'),
             glob(__DIR__ . '/../../src/*/*/*.php'),
             glob(__DIR__ . '/../../src/*/*.php')
         );
