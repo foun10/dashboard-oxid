@@ -107,6 +107,11 @@ show, and the dashboard says so.
 - **Large shops:** the customer-type breakdown and the yearly comparison each read all completed
   orders in one grouped query. Both are cached, but the first load after the cache expires does
   the work. If that is too slow for your order volume, raise the cache lifetime.
+- **Who sees it:** the dashboard follows the order rights. Anyone who may open *Administer
+  Orders* gets it; anyone who may not keeps OXID's own start page, and calling the dashboard
+  directly sends them there too. That matters in the Enterprise Edition, where a role can be
+  denied access to orders — the dashboard would otherwise report exactly the revenue that role
+  is not meant to see. In the Community Edition every admin may see orders, so nothing changes.
 - **Multiple shops (EE):** all figures are for the shop selected in the admin. Open baskets are
   assigned through their customer's shop — unless customer accounts are shared between shops
   (`blMallUsers`), where OXID uses one saved basket everywhere and the list shows all of them.

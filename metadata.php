@@ -15,7 +15,7 @@ $aModule = [
         'de' => 'Ersetzt die Startseite des Admin-Bereichs durch ein Umsatz-Dashboard: Kennzahlen mit Vergleich zu Vorperiode und Vorjahr, Verlauf, Kundentypen, Zahlungsarten, Lieferländer, Topseller und offene Warenkörbe.',
         'en' => 'Replaces the admin start page with a sales dashboard: KPIs compared with the previous period and last year, trend, customer types, payment methods, delivery countries, top sellers and open baskets.',
     ],
-    'version' => '6.0.0',
+    'version' => '6.0.1',
     'author' => 'foun10 GmbH',
     'email' => 'info@foun10.de',
     'extend' => [
