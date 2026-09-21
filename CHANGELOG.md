@@ -8,6 +8,18 @@ Each OXID line has its own release series: `7.x` on the `b-7.x` branch for OXID 
 `b-6.x` branch for OXID 6 - the major version tracks the OXID line it targets, not a generation
 of the module. The two are developed in parallel, so a fix usually appears in both.
 
+## [7.0.1] - 2026-09-21
+
+### Fixed
+
+- The dashboard now follows the order rights instead of being shown to every admin user. In the
+  Enterprise Edition a role can be denied access to orders; such a user was still shown the
+  dashboard after login, with the revenue, order and top-seller figures that the role is not
+  meant to see. They now keep OXID's own start page, and opening `cl=foun10_dashboard` directly
+  sends them there as well. The permission is read from the admin menu OXID builds for the
+  logged-in user, so user rights, groups and modules that hide the order menu count too. The
+  Community Edition is unaffected - every admin there may see orders.
+
 ## [7.0.0] - 2026-09-17
 
 First public release for OXID 7, functionally identical to `6.0.0`. Templates are Twig, module

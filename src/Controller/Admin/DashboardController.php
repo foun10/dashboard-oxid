@@ -6,6 +6,7 @@ namespace foun10\Dashboard\Controller\Admin;
 use DateTimeImmutable;
 use foun10\Dashboard\Core\DashboardData;
 use foun10\Dashboard\Core\Formatter;
+use foun10\Dashboard\Core\OrderAccess;
 use foun10\Dashboard\Core\Period;
 use OxidEsales\Eshop\Application\Controller\Admin\AdminController;
 use OxidEsales\Eshop\Core\Registry;
@@ -26,6 +27,9 @@ class DashboardController extends AdminController
      */
     public const SESSION_MESSAGES = 'foun10DashboardStartupMessages';
 
+    /** The admin's own start page, where users without order rights are sent instead. */
+    public const HOME_ITEM = 'home.html.twig';
+
     protected $_sThisTemplate = '@foun10Dashboard/admin/foun10_dashboard.html.twig';
 
     protected const TOP_SELLER_ROWS_TEMPLATE = '@foun10Dashboard/admin/partials/topseller_rows.html.twig';
@@ -36,6 +40,14 @@ class DashboardController extends AdminController
     public function render()
     {
         parent::render();
+
+        // Called directly (the navigation sends nobody here who may not see it), so the
+        // rights are checked here too - the page reports revenue.
+        if (!$this->mayViewOrders()) {
+            $this->redirectToAdminHome();
+
+            return $this->_sThisTemplate;
+        }
 
         $period = $this->getRequestedPeriod();
         $refresh = $this->getRequestString('refresh') === '1';
@@ -189,6 +201,33 @@ class DashboardController extends AdminController
         $link = $this->getViewConfig()->getSelfLink() . 'cl=' . $class;
 
         return $oxid !== '' ? $link . '&oxid=' . rawurlencode($oxid) : $link;
+    }
+
+    /**
+     * Whether the logged-in user may see order data at all - see OrderAccess.
+     */
+    public function mayViewOrders(): bool
+    {
+        return (new OrderAccess())->isGranted($this->getMenuDom());
+    }
+
+    /**
+     * The admin menu as OXID built it for the logged-in user. Null when it cannot be built;
+     * OrderAccess then decides against showing the dashboard.
+     */
+    protected function getMenuDom(): ?\DOMDocument
+    {
+        $navigation = $this->getNavigation();
+
+        return $navigation !== null ? $navigation->getDomXml() : null;
+    }
+
+    protected function redirectToAdminHome(): void
+    {
+        $url = html_entity_decode((string) $this->getViewConfig()->getSelfLink(), ENT_QUOTES)
+            . 'cl=navigation&item=' . self::HOME_ITEM;
+
+        Registry::getUtils()->redirect($url, false, 302);
     }
 
     /**

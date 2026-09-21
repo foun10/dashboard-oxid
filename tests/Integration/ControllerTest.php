@@ -216,6 +216,46 @@ class ControllerTest extends TestCase
         ];
     }
 
+    /**
+     * The dashboard reports orders, so whoever may not see orders does not see it - the
+     * Enterprise Edition can take that away from a role. Both entry points have to agree,
+     * otherwise the two would redirect to each other in turn.
+     */
+    public function testWithoutOrderRightsTheAdminKeepsItsOwnStartPage(): void
+    {
+        $_GET['item'] = 'home.html.twig';
+
+        self::assertSame('home.html.twig', $this->navigation([], false)->render());
+        self::assertSame([], $this->utils->redirects);
+    }
+
+    public function testWithoutOrderRightsTheDashboardSendsTheUserToTheAdminHome(): void
+    {
+        $_GET = ['period' => 'custom', 'from' => Fixtures::FROM, 'to' => Fixtures::TO];
+
+        $controller = $this->dashboard(false);
+        $controller->render();
+
+        self::assertCount(1, $this->utils->redirects);
+        self::assertStringContainsString(
+            'cl=navigation&item=' . DashboardController::HOME_ITEM,
+            $this->utils->redirects[0]['url']
+        );
+        self::assertNull($controller->getViewDataElement('dashboard'), 'no figures are collected');
+    }
+
+    public function testWithOrderRightsTheDashboardIsShown(): void
+    {
+        $_GET = ['period' => 'custom', 'from' => Fixtures::FROM, 'to' => Fixtures::TO];
+
+        $controller = $this->dashboard();
+        $controller->render();
+
+        self::assertSame([], $this->utils->redirects);
+        self::assertTrue($controller->mayViewOrders(), 'the shop admin may see orders');
+        self::assertSame(5, $controller->getViewDataElement('dashboard')['current']['orders']);
+    }
+
     public function testLoadTopSellersRespondsWithTheNextPage(): void
     {
         $_GET = ['period' => 'custom', 'from' => Fixtures::FROM, 'to' => Fixtures::TO, 'offset' => '1'];
@@ -255,24 +295,33 @@ class ControllerTest extends TestCase
             ->renderTemplate($template, $context);
     }
 
-    private function navigation(?array $startupMessages = null): NavigationController
+    private function navigation(?array $startupMessages = null, bool $mayViewOrders = true): NavigationController
     {
         $navigation = oxNew(\OxidEsales\Eshop\Application\Controller\Admin\NavigationController::class);
 
         if ($startupMessages !== null) {
-            $navigation = new class ($startupMessages) extends NavigationController {
+            $navigation = new class ($startupMessages, $mayViewOrders) extends NavigationController {
                 /** @var array */
                 private $startupMessages;
 
-                public function __construct(array $startupMessages)
+                /** @var bool */
+                private $orderRights;
+
+                public function __construct(array $startupMessages, bool $mayViewOrders)
                 {
                     parent::__construct();
                     $this->startupMessages = $startupMessages;
+                    $this->orderRights = $mayViewOrders;
                 }
 
                 protected function doStartUpChecks()
                 {
                     return $this->startupMessages;
+                }
+
+                protected function mayViewOrders(): bool
+                {
+                    return $this->orderRights;
                 }
             };
         }
@@ -284,8 +333,24 @@ class ControllerTest extends TestCase
         return $navigation;
     }
 
-    private function dashboard(): DashboardController
+    /**
+     * With $mayViewOrders false the controller sees a menu without the order entry - what the
+     * Enterprise Edition hands a role that may not see orders.
+     */
+    private function dashboard(bool $mayViewOrders = true): DashboardController
     {
-        return oxNew(DashboardController::class);
+        if ($mayViewOrders) {
+            return oxNew(DashboardController::class);
+        }
+
+        return new class extends DashboardController {
+            protected function getMenuDom(): ?\DOMDocument
+            {
+                $menu = new \DOMDocument();
+                $menu->loadXML('<OX><MAINMENU id="mxarticles"><SUBMENU id="mxarticle" cl="article_list"/></MAINMENU></OX>');
+
+                return $menu;
+            }
+        };
     }
 }

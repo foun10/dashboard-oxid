@@ -22,7 +22,10 @@ class ModuleWiringTest extends TestCase
      * Methods an extension adds on purpose. Anything else it declares must override a parent
      * method - a hook whose name no longer matches the parent is silently never called.
      */
-    private const METHODS_THE_MODULE_ADDS = [];
+    private const METHODS_THE_MODULE_ADDS = [
+        // asks DashboardController whether this user may see order data at all
+        'mayViewOrders',
+    ];
 
     public function testNavigationControllerIsExtended(): void
     {
